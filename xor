@@ -46,6 +46,18 @@ ensure_package_specified() {
 COMMAND=""
 PKG_NAME=""
 
+
+need_root() {
+
+    # Root detection
+    if [[ $(whoami) == "root" ]]; then
+	return
+    fi
+    msgerr "This command needs root"
+    interrupt
+}
+
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
 	install|remove|depends|list|list-repository)
@@ -76,10 +88,12 @@ done
 
 case "$COMMAND" in
     install)
+	need_root
         ensure_package_specified
 	search_repositories "$PKG_NAME"
         ;;
     remove)
+	need_root
         ensure_package_specified
         remove_package "$PKG_NAME"
         ;;

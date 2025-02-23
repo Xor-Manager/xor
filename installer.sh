@@ -25,7 +25,7 @@ search_repositories() {
 }
 
 check_dependencies() {
-	source "$MANAGER_REPOSITORY/$PKG_NAME/build.sh"
+	source "$MANAGER_REPOSITORY/$PKG_NAME/XORBUILD"
 
 	if [ -z "$PKG_DEPENDENCIES" ]; then
 
@@ -100,7 +100,7 @@ download() {
 	msg "Sourcing repository $PKG_NAME"
 
 	if [ ! -d "$MANAGER_ARCHIVES/$PKG_NAME" ]; then
-		sudo mkdir -p "$MANAGER_ARCHIVES/$PKG_NAME"
+		mkdir -p "$MANAGER_ARCHIVES/$PKG_NAME"
 	fi
 
 
@@ -111,7 +111,7 @@ download() {
 		pushd "$MANAGER_ARCHIVES/$PKG_NAME"
 
 			msg2 "Unpacking $FILE_NAME"
-			sudo wget --waitretry=1 -O "$FILE_NAME$FILE_EXT" "$PKG_URL"
+			wget --waitretry=1 -O "$FILE_NAME$FILE_EXT" "$PKG_URL"
 
 		popd
 	fi
@@ -122,12 +122,12 @@ download() {
 unpack() {
 	pushd "$MANAGER_ARCHIVES/$PKG_NAME"
 		msg2 "Unpacking $FILE_NAME"
-		sudo tar xf "$FILE_NAME$FILE_EXT" || { msgerr "Error unpacking $FILE_NAME"; exit 1; }
+		tar xf "$FILE_NAME$FILE_EXT" || { msgerr "Error unpacking $FILE_NAME"; exit 1; }
 
 		FILE_NAME=$(ls -td */ | head -n 1 | tr -d '/')
 
 		msg "Creating build folder"
-		sudo mkdir -p "$FILE_NAME/build"
+		mkdir -p "$FILE_NAME/build"
 	popd
 
 	call_configure
@@ -162,14 +162,14 @@ install_and_log() {
 		return 1
 	fi
 
-	sudo mkdir -p "$dest_dir"
+	mkdir -p "$dest_dir"
 
 	for file in "$src_dir"/*; do
 		if [ -f "$file" ]; then
 			dest_file="$dest_dir/$(basename "$file")"
 
 			# echo "Installing $file to $dest_file"
-			sudo install -Dm755 "$file" "$dest_file" && echo "$dest_file" | sudo tee -a "$log_file" > /dev/null
+			install -Dm755 "$file" "$dest_file" && echo "$dest_file" | tee -a "$log_file" > /dev/null
 			msg2 "Installed: $dest_file"
 
 		elif [ -d "$file" ]; then
@@ -196,20 +196,29 @@ installing() {
 		install_and_log "$PREFIX/share" "/usr/share" "$PKG_NAME"
 	fi
 
+	if [ -d "$PREFIX/release" ]; then
+		install_and_log "$PREFIX/release" "/opt/niri" "$PKG_NAME"
+	fi
+
 	adding_installed_db
 	remove_archives
 }
 
 remove_archives() {
-	sudo rm -rf "$MANAGER_ARCHIVES/$PKG_NAME/*"
+	rm -rf "$MANAGER_ARCHIVES/$PKG_NAME/*"
 	echo $PREFIX
+}
+
+cleanup() {
+	rm -rf "$MANAGER_ARCHIVES/$PKG_NAME/*"
+	rm -rf "$MANAGER_ARCHIVES/$PKG_NAME/*"
 }
 
 adding_installed_db() {
 
 	DEPENDENCIES=$(echo "$PKG_DEPENDENCIES" | sed 's/\(.*\)/- \1/g' | tr '\n' '\n')
 
-	sudo tee "$MANAGER_DB/installed/$PKG_NAME" > /dev/null <<- EOF
+	tee "$MANAGER_DB/installed/$PKG_NAME" > /dev/null <<- EOF
 	Package: $PKG_NAME
 	Version: $PKG_VER
 	Dependencies:

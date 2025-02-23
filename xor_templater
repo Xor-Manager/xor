@@ -21,7 +21,7 @@ if [ -d "$PACKAGE_DIRECTORY" ]; then
 	exit 1
 fi
 
-sudo mkdir -p $MANAGER_REPOSITORY/$PACKAGE_NAME
+mkdir -p $MANAGER_REPOSITORY/$PACKAGE_NAME
 echo "Created: $PACKAGE_DIRECTORY"
 
 msg3 "Write the pkg version"
@@ -37,7 +37,7 @@ pkg_url=${pkg_url:-""}
 
 #TODO: Add read for each and probably a pushd
 
-sudo tee "$PACKAGE_DIRECTORY/build.sh" > /dev/null << EOF
+tee "$PACKAGE_DIRECTORY/XORBUILD" > /dev/null << EOF
 #!/usr/bin/env bash
 set -e
 
@@ -51,7 +51,7 @@ PKG_DEPENDENCIES=\$(cat <<- EOF
 
 PKG_MAKE_DEPENDENCIES=""
 PKG_URL=$pkg_url
-PREFIX=$MANAGER_PREFIX/\$PKG_NAME
+PREFIX=\$MANAGER_PREFIX/\$PKG_NAME
 
 configure() {
 }
@@ -61,6 +61,6 @@ build() {
 
 EOF
 
-sudo chmod +x "$PACKAGE_DIRECTORY/build.sh"
+chmod +x "$PACKAGE_DIRECTORY/XORBUILD"
 
 echo "Package template for $PACKAGE_NAME was created successfully!"

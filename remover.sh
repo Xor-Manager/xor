@@ -20,19 +20,19 @@ remove_package() {
 
 	for file in $installed_files; do
 		if [ -f "$file" ]; then
-			sudo rm -f "$file"
+			rm -f "$file"
 			msg3 "Removed file: $file"
 		elif [ -d "$file" ]; then
-			sudo rm -rf "$file"
+			rm -rf "$file"
 			msg2 "Removed directory: $file"
 		else
 			msgwarn "File or directory $file not found, skipping."
 		fi
 	done
 
-	sudo rm -f "$MANAGER_DB/paths/$PKG_NAME"
+	rm -f "$MANAGER_DB/paths/$PKG_NAME"
 	msg2 "Package $PKG_NAME has been removed from the paths database."
 
-	sudo rm -f "$MANAGER_DB/installed/$PKG_NAME"
+	rm -f "$MANAGER_DB/installed/$PKG_NAME"
 	msg2 "Package $PKG_NAME has been removed from the installed database."
 }
