@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -e
+
+source ./config.sh
+source ./messages.sh
+
+PACKAGE_NAME=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+msg3 "Package name: $PACKAGE_NAME"
+echo ""
+
+if [ -z "$PACKAGE_NAME" ]; then
+	echo "Put the package name"
+	exit 1
+fi
+
+PACKAGE_DIRECTORY=$MANAGER_REPOSITORY/$PACKAGE_NAME
+
+
+if [ -d "$PACKAGE_DIRECTORY" ]; then
+	echo "The repository package already exist"
+	exit 1
+fi
+
+sudo mkdir -p $MANAGER_REPOSITORY/$PACKAGE_NAME
+echo "Created: $PACKAGE_DIRECTORY"
+
+msg3 "Write the pkg version"
+read -r pkg_ver
+pkg_ver=${pkg_ver:-""}
+
+echo ""
+
+msg3 "Write the pkg url"
+read -r pkg_url
+pkg_url=${pkg_url:-""}
+
+
+#TODO: Add read for each and probably a pushd
+
+sudo tee "$PACKAGE_DIRECTORY/build.sh" > /dev/null << EOF
+#!/usr/bin/env bash
+set -e
+
+source ./config.sh
+
+PKG_NAME=$PACKAGE_NAME
+PKG_VER=$pkg_ver
+PKG_DEPENDENCIES=\$(cat <<- EOF
+	EOF
+)
+
+PKG_MAKE_DEPENDENCIES=""
+PKG_URL=$pkg_url
+PREFIX=$MANAGER_PREFIX/\$PKG_NAME
+
+configure() {
+}
+
+build() {
+}
+
+EOF
+
+sudo chmod +x "$PACKAGE_DIRECTORY/build.sh"
+
+echo "Package template for $PACKAGE_NAME was created successfully!"

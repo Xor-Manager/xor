@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -e
+
+source ./config.sh
+source ./messages.sh
+source ./installer.sh
+source ./remover.sh
+source ./listing.sh
+
+INTERACTIVE_MODE=false
+VERBOSE_MODE=false
+DEBUG_MODE=false
+
+# show_dependencies() {
+#     # Transformar as dependências em uma lista bonita para exibir no console
+#     DEPENDENCIES=$(echo "$PKG_DEPENDENCIES" | sed 's/\(.*\)/- \1/g' | tr '\n' '\n')
+#
+#     echo -e "${GREEN}Dependencies:${RESET}"
+#     echo -e "$DEPENDENCIES"
+# }
+
+show_help() {
+    echo "Uso: $0 <comando> [opções] <pacote>"
+    echo ""
+    echo "Comandos disponíveis:"
+    echo "  install         Instalar um pacote"
+    echo "  remove          Remover um pacote"
+    echo "  list            Listar pacotes instalados"
+    echo "  list-repository Listar pacotes disponíveis no repositório"
+    echo "  depends	    Listar dependencias de pacotes"
+    echo ""
+    echo "Opções:"
+    echo "  -i, --interactive   Perguntar para cada dependência antes de instalar"
+    echo "  -v, --verbose       Mostrar mais detalhes durante a execução"
+    echo "  -h, --help          Mostrar esta ajuda"
+    exit 0
+}
+
+ensure_package_specified() {
+    if [ -z "$PKG_NAME" ]; then
+	msgerr "Error: No package specified."
+	exit 1
+    fi
+}
+
+COMMAND=""
+PKG_NAME=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+	install|remove|depends|list|list-repository)
+	    COMMAND="$1"
+	    shift
+	    if [[ $# -gt 0 ]]; then
+		PKG_NAME=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+		shift
+	    fi
+	    ;;
+	-i|--interactive)
+	    INTERACTIVE_MODE=true
+	    shift
+	    ;;
+	-v|--verbose)
+	    VERBOSE_MODE=true
+	    shift
+	    ;;
+	    -h|--help)
+		show_help
+		;;
+	    *)
+		msgerr "Error: Unknow command or option '$1'"
+		show_help
+		;;
+	esac
+done
+
+case "$COMMAND" in
+    install)
+        ensure_package_specified
+	search_repositories "$PKG_NAME"
+        ;;
+    remove)
+        ensure_package_specified
+        remove_package "$PKG_NAME"
+        ;;
+    list)
+        list_installed_packages "$PKG_NAME"
+        ;;
+    list-repository)
+        list_repository "$PKG_NAME"
+        ;;
+    depends)
+	show_dependencies "$PKG_NAME"
+	;;
+    *)
+        # msgerr "Erro: Nenhum comando válido foi especificado."
+        show_help
+        ;;
+esac
