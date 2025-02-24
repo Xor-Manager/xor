@@ -4,29 +4,15 @@ set -e
 source ./config.sh
 source ./messages.sh
 
-list_repository () {
-    if [ -n "$1" ]; then
-        msg3 "Searching for package: $1"
-        pushd "$MANAGER_REPOSITORY" > /dev/null
-        find . -type d -iname "*$1*" -exec basename {} \; | nl -s ". "
-        popd > /dev/null
-    else
-        msg3 "Packages on repository: "
-        pushd "$MANAGER_REPOSITORY" > /dev/null
-        find . -type d -exec basename {} \; | grep -v '^\.$' | nl -s ". "
-        popd > /dev/null
-    fi
-}
-
 list_installed_packages() {
     msg3 "Installed packages with versions:"
-    for pkg in "$MANAGER_DB/installed"/*; do
-        if [ -f "$pkg" ]; then
+    for pkg in "$MANAGER_INSTALLED"/*; do
+        if [ -d "$pkg" ]; then
 
             pkg_name=$(basename "$pkg")
-            pkg_version=$(grep -i "Version" "$pkg" | awk -F": " '{print $2}')
-            echo "$pkg_name - $pkg_version"
+            pkg_version="$(cat "$pkg/version")"
 
+            echo -e "$pkg_name $GREEN[$pkg_version]$RESET"
         fi
     done
 }

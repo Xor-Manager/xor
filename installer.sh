@@ -4,14 +4,26 @@ set -e
 source ./config.sh
 source ./messages.sh
 
+source ./repositories
+
 PKG_NAME=$1
 PKG_VER=$2
 
+
 #First (main)
-search_repositories() {
+check_already_installed() {
 	PKG_NAME=$1
 
-	result=$(find "$MANAGER_REPOSITORY" -type d -name "$PKG_NAME" | head -n 1)
+	if [ -d "$MANAGER_DB/installed/$PKG_NAME" ]; then
+		msg "Package $PKG_NAME is already installed."
+		interrupt
+	fi
+	check_repositories
+}
+
+check_repositories() {
+	result=$(search_repositories "$PKG_NAME" | head -n 1)
+	echo $result
 
 	if [ -n "$result" ]; then
 		echo "Package found: $result"
@@ -22,7 +34,9 @@ search_repositories() {
 		msgerr "Package not found: $PKG_NAME"
 		interrupt
 	fi
+
 }
+
 
 check_dependencies() {
 	source "$MANAGER_REPOSITORY/$PKG_NAME/XORBUILD"
@@ -35,6 +49,7 @@ check_dependencies() {
 		answer=${answer:-"y"}
 		if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
 			download
+			return 0
 		else
 			interrupt
 		fi
@@ -55,7 +70,9 @@ check_dependencies() {
 				read -r answer
 				answer=${answer:-"y"}
 				if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
-					bash ./xor install "$dep"
+					if [ ! -d "$MANAGER_INSTALLED/$dep"]; then
+						bash ./xor install "$dep"
+					fi
 				else
 					msgerr "Dependencie $dep not installed. The package can not work correcly."
 				fi
@@ -108,12 +125,11 @@ download() {
 	FILE_NAME="$PKG_NAME-$PKG_VER"
 
 	if [ ! -f "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" ]; then
-		pushd "$MANAGER_ARCHIVES/$PKG_NAME"
+		msg2 "Downloading $FILE_NAME"
 
-			msg2 "Unpacking $FILE_NAME"
-			wget --waitretry=1 -O "$FILE_NAME$FILE_EXT" "$PKG_URL"
-
-		popd
+		wget --waitretry=1 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$PKG_URL"
+	else
+		msg "Package $PKG_NAME already downloaded."
 	fi
 
 	unpack
@@ -155,7 +171,9 @@ install_and_log() {
 	local src_dir="$1"
 	local dest_dir="$2"
 	local package_name="$3"
-	local log_file="$MANAGER_DB/paths/$PKG_NAME"
+
+	# local log_file="$MANAGER_DB/paths/$PKG_NAME"
+	PATHS_FILE="/tmp/$PKG_NAME"
 
 	if [ ! -d "$src_dir" ]; then
 		msgerr "Source directory $src_dir does not exist!"
@@ -169,7 +187,7 @@ install_and_log() {
 			dest_file="$dest_dir/$(basename "$file")"
 
 			# echo "Installing $file to $dest_file"
-			install -Dm755 "$file" "$dest_file" && echo "$dest_file" | tee -a "$log_file" > /dev/null
+			install -Dm755 "$file" "$dest_file" && echo "$dest_file" | tee -a "$PATHS_FILE" > /dev/null
 			msg2 "Installed: $dest_file"
 
 		elif [ -d "$file" ]; then
@@ -215,14 +233,18 @@ cleanup() {
 }
 
 adding_installed_db() {
+	local folder="$MANAGER_INSTALLED/$PKG_NAME"
+	mkdir -p "$folder"
 
-	DEPENDENCIES=$(echo "$PKG_DEPENDENCIES" | sed 's/\(.*\)/- \1/g' | tr '\n' '\n')
+	echo "$PKG_VER" > "$folder/version"
+	echo "$PKG_URL" > "$folder/url"
 
-	tee "$MANAGER_DB/installed/$PKG_NAME" > /dev/null <<- EOF
-	Package: $PKG_NAME
-	Version: $PKG_VER
-	Dependencies:
-		$(echo "$PKG_DEPENDENCIES" | sed 's/^/- /')
-	Url: $PKG_URL
-	EOF
+	if [ -n "$PKG_DEPENDENCIES" ]; then
+		echo "$PKG_DEPENDENCIES" | sed 's/\(.*\)/- \1/g' | tr '\n' '\n' > "$folder/dependencies"
+	else
+		touch "$folder/dependencies"
+	fi
+
+	echo "$(cat "$PATHS_FILE")" > "$folder/paths" &&
+	rm $PATHS_FILE
 }

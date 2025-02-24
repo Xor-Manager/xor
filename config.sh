@@ -3,6 +3,7 @@
 export MANAGER_NAME=xor
 
 export MANAGER_DB=/var/$MANAGER_NAME/db
+export MANAGER_INSTALLED=$MANAGER_DB/installed
 
 export MANAGER_PREFIX=/var/$MANAGER_NAME/prefixes
 

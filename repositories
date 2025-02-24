@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -e
+
+source ./config.sh
+source ./messages.sh
+
+search_repositories() {
+	PKG=$1
+
+	if [ -n "$1" ]; then
+		result=$(find "$MANAGER_REPOSITORY/" -type d -iname "$1" -exec basename {} \; | grep -v "^repository$")
+	else
+		result=$(find "$MANAGER_REPOSITORY/" -type d -exec basename {} \; | grep -v "^repository$")
+	fi
+	echo "$result"
+}

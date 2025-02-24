@@ -6,18 +6,12 @@ source ./messages.sh
 source ./installer.sh
 source ./remover.sh
 source ./listing.sh
+source ./commands.sh
 
 INTERACTIVE_MODE=false
 VERBOSE_MODE=false
 DEBUG_MODE=false
 
-# show_dependencies() {
-#     # Transformar as dependências em uma lista bonita para exibir no console
-#     DEPENDENCIES=$(echo "$PKG_DEPENDENCIES" | sed 's/\(.*\)/- \1/g' | tr '\n' '\n')
-#
-#     echo -e "${GREEN}Dependencies:${RESET}"
-#     echo -e "$DEPENDENCIES"
-# }
 
 show_help() {
     echo "Uso: $0 <comando> [opções] <pacote>"
@@ -49,7 +43,7 @@ PKG_NAME=""
 
 need_root() {
 
-    # Root detection
+    # Root detection TODO: NEED TO CHANGE
     if [[ $(whoami) == "root" ]]; then
 	return
     fi
@@ -90,7 +84,7 @@ case "$COMMAND" in
     install)
 	need_root
         ensure_package_specified
-	search_repositories "$PKG_NAME"
+	check_already_installed "$PKG_NAME"
         ;;
     remove)
 	need_root
