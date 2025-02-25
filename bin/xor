@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
-source ./config.sh
-source ./messages.sh
+source ../core/config.sh
+source ../core/messages.sh
 source ./installer.sh
 source ./remover.sh
-source ./listing.sh
-source ./commands.sh
+source ../database/listing.sh
+source ../core/commands.sh
 
 INTERACTIVE_MODE=false
 VERBOSE_MODE=false

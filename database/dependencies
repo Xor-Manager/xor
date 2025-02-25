@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -e
+
+source ./listing.sh
+
+
+get_dependencies() {
+	local pkg=$1
+	local dependencies=()
+	local file="$MANAGER_INSTALLED/$pkg/dependencies"
+
+	if [ -f "$file" ]; then
+		 
+	fi
+
+	
+}
+
+show_dependencies() {
+    if [ -n "$1" ]; then
+        local pkg_file="$MANAGER_DB/installed/$1"
+
+        if [ -f "$pkg_file" ]; then
+            dependencies=$(awk '/Dependencies:/ {flag=1; next} /Url:/ {flag=0} flag' "$pkg_file" | sed '/^$/d' | sed 's/^- //')
+
+            echo -e "Dependencies for package: ${GREEN}$1${RESET}"
+
+            if [ -n "$dependencies" ]; then
+                echo "$dependencies" | sed 's/^/- /'
+            else
+                echo "  No dependencies."
+            fi
+        else
+            msgerr "Package $1 not found in the installed database."
+        fi
+    else
+        echo "All installed packages and their dependencies:"
+
+        for pkg in "$MANAGER_DB/installed"/*; do
+            if [ -f "$pkg" ]; then
+                local pkg_name
+                pkg_name=$(basename "$pkg")
+
+                dependencies=$(awk '/Dependencies:/ {flag=1; next} /Url:/ {flag=0} flag' "$pkg" | sed '/^$/d' | sed 's/^- //')
+
+                echo -e "\n${GREEN}Package:${RESET} $pkg_name"
+                
+                if [ -n "$dependencies" ]; then
+                    echo "Dependencies:"
+                    echo "$dependencies" | sed 's/^/- /'
+                else
+                    echo "Dependencies: No dependencies."
+                fi
+            fi
+        done
+    fi
+}
+
+is_dependency_from_other() {
+	local pkg=$1
+	local dependent_packages=()
+
+	for installed_pkg in "$MANAGER_INSTALLED"/*; do
+		if [ -f "$installed_pkg/dependencies"]; then
+			if grep -q "^$pkg$" "$installed_pkg/dependencies"; then
+				dependent_packages+=("$(basename "$installed_pkg")")
+			fi
+		fi
+	done
+
+	if [ ${#dependent_packages[@]} -gt 0 ]; then 
+		echo "$dependent_packages"
+		return 0
+	fi
+
+	return 1
+}

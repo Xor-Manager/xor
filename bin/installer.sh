@@ -1,14 +1,15 @@
 #!/usr/bin/bash
 set -e
+# set -x
 
-source ./config.sh
-source ./messages.sh
+source ../core/config.sh
+source ../core/messages.sh
 
-source ./repositories
+source ../database/repositories
+source ../core/check_command
 
 PKG_NAME=$1
 PKG_VER=$2
-
 
 #First (main)
 check_already_installed() {
@@ -23,7 +24,6 @@ check_already_installed() {
 
 check_repositories() {
 	result=$(search_repositories "$PKG_NAME" | head -n 1)
-	echo $result
 
 	if [ -n "$result" ]; then
 		echo "Package found: $result"
@@ -35,6 +35,22 @@ check_repositories() {
 		interrupt
 	fi
 
+}
+
+ask_to_install_dependency() {
+	local dep=$1
+	msgwarn "Dependency $dep not found. Want to install ? (Y/n)"
+
+	read -r answer
+	answer=${answer:-"y"}
+
+	if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+		msg "Installing dependency: $dep"
+		bash ./xor install "$dep" || { msgerr "Failed to install dependency $dep"; return 1; }
+	else
+		msgerr "Dependency $dep not installed. The package can not work correctly."
+		return 1
+	fi
 }
 
 
@@ -57,33 +73,27 @@ check_dependencies() {
 	fi
 
 	msg2 "The package $PKG_NAME requires the following dependencies:"
-	echo "$PKG_DEPENDENCIES" | tr ' ' '\n' | sed '/^$/d' | sed 's/^/   - /' | column -c 80
+	if [ -z "$PKG_DEPENDENCIES" ]; then
+		msg "No dependencies required for $PKG_NAME."
+	else
+		echo "$PKG_DEPENDENCIES" | tr ' ' '\n' | sed '/^$/d' | sed 's/^/   - /' | column -c 80
+	fi
 	echo ""
 
 
 	if [ "$INTERACTIVE_MODE" == "true" ]; then
 
 		for dep in $PKG_DEPENDENCIES; do
-			if [ ! -f "$MANAGER_DB/installed/$dep" ]; then
-				msgwarn "Dependencie $dep not found. Want to install ? (Y/n)"
-
-				read -r answer
-				answer=${answer:-"y"}
-				if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
-					if [ ! -d "$MANAGER_INSTALLED/$dep"]; then
-						bash ./xor install "$dep"
-					fi
-				else
-					msgerr "Dependencie $dep not installed. The package can not work correcly."
-				fi
+			if [ ! -d "$MANAGER_INSTALLED/$dep" ]; then
+				ask_to_install_dependency "$dep"
 			else
-				msg "Dependencie $dep already installed."
+				msg "Dependency $dep already installed."
 			fi
 		done
 	else
 		missing_deps=()
 		for dep in $PKG_DEPENDENCIES; do
-			if [ ! -f "$MANAGER_DB/installed/$dep" ]; then
+			if [ ! -d "$MANAGER_INSTALLED/$dep" ]; then
 				missing_deps+=("$dep")
 			fi
 		done
@@ -117,7 +127,7 @@ download() {
 	msg "Sourcing repository $PKG_NAME"
 
 	if [ ! -d "$MANAGER_ARCHIVES/$PKG_NAME" ]; then
-		mkdir -p "$MANAGER_ARCHIVES/$PKG_NAME"
+		mkdir -p "$MANAGER_ARCHIVES/$PKG_NAME" || { msgerr "Failed to create directory $MANAGER_ARCHIVES/$PKG_NAME"; exit 1; }
 	fi
 
 
@@ -127,7 +137,20 @@ download() {
 	if [ ! -f "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" ]; then
 		msg2 "Downloading $FILE_NAME"
 
-		wget --waitretry=1 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$PKG_URL"
+
+		#INFO: Progress bar for wget if the system has the pv command
+		if check_pv; then
+			if ! wget --waitretry=3 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$PKG_URL" | pv -n > /dev/null; then
+				msgerr "Error downloading the package $PKG_NAME with pv."
+				exit 1
+			fi
+		else
+			if ! wget --waitretry=3 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$PKG_URL"; then
+				msgerr "Error downloading the package $PKG_NAME."
+				exit 1
+			fi
+		fi
+
 	else
 		msg "Package $PKG_NAME already downloaded."
 	fi
@@ -136,15 +159,28 @@ download() {
 }
 
 unpack() {
-	pushd "$MANAGER_ARCHIVES/$PKG_NAME"
-		msg2 "Unpacking $FILE_NAME"
-		tar xf "$FILE_NAME$FILE_EXT" || { msgerr "Error unpacking $FILE_NAME"; exit 1; }
+	cd "$MANAGER_ARCHIVES/$PKG_NAME"
 
-		FILE_NAME=$(ls -td */ | head -n 1 | tr -d '/')
+	if [ ! -f "$FILE_NAME$FILE_EXT" ]; then
+		msgerr "Package archive not found: $FILE_NAME$FILE_EXT"
+		exit 1
+	fi
 
-		msg "Creating build folder"
-		mkdir -p "$FILE_NAME/build"
-	popd
+
+
+	msg2 "Unpacking $FILE_NAME"
+	tar xf "$FILE_NAME$FILE_EXT" || { msgerr "Error unpacking $FILE_NAME"; exit 1; }
+
+	FILE_NAME=$(ls -td */ | head -n 1 | tr -d '/')
+
+	if [ -z "$FILE_NAME" ]; then
+		msgerr "Unpacking failed: No directory found"
+		exit 1
+	fi
+
+	msg "Creating build folder"
+	mkdir -p "$FILE_NAME/build"
+	cd - > /dev/null
 
 	call_configure
 }
@@ -172,8 +208,7 @@ install_and_log() {
 	local dest_dir="$2"
 	local package_name="$3"
 
-	# local log_file="$MANAGER_DB/paths/$PKG_NAME"
-	PATHS_FILE="/tmp/$PKG_NAME"
+	TMP_PATH_FILES=$(mktemp)
 
 	if [ ! -d "$src_dir" ]; then
 		msgerr "Source directory $src_dir does not exist!"
@@ -187,7 +222,7 @@ install_and_log() {
 			dest_file="$dest_dir/$(basename "$file")"
 
 			# echo "Installing $file to $dest_file"
-			install -Dm755 "$file" "$dest_file" && echo "$dest_file" | tee -a "$PATHS_FILE" > /dev/null
+			install -Dm755 "$file" "$dest_file" && echo "$dest_file" | tee -a "$TMP_PATH_FILES" > /dev/null
 			msg2 "Installed: $dest_file"
 
 		elif [ -d "$file" ]; then
@@ -218,18 +253,9 @@ installing() {
 		install_and_log "$PREFIX/release" "/opt/niri" "$PKG_NAME"
 	fi
 
+	# remove_archives
 	adding_installed_db
-	remove_archives
-}
-
-remove_archives() {
-	rm -rf "$MANAGER_ARCHIVES/$PKG_NAME/*"
-	echo $PREFIX
-}
-
-cleanup() {
-	rm -rf "$MANAGER_ARCHIVES/$PKG_NAME/*"
-	rm -rf "$MANAGER_ARCHIVES/$PKG_NAME/*"
+	trap cleanup EXIT
 }
 
 adding_installed_db() {
@@ -240,11 +266,36 @@ adding_installed_db() {
 	echo "$PKG_URL" > "$folder/url"
 
 	if [ -n "$PKG_DEPENDENCIES" ]; then
-		echo "$PKG_DEPENDENCIES" | sed 's/\(.*\)/- \1/g' | tr '\n' '\n' > "$folder/dependencies"
+		# echo "$PKG_DEPENDENCIES" | sed 's/\(.*\)/- \1/g' | tr '\n' '\n' > "$folder/dependencies"
+		echo "$PKG_DEPENDENCIES" > "$folder/dependencies"
 	else
 		touch "$folder/dependencies"
 	fi
 
-	echo "$(cat "$PATHS_FILE")" > "$folder/paths" &&
-	rm $PATHS_FILE
+	echo "$(cat "$TMP_PATH_FILES")" > "$folder/paths" &&
+	rm -f $TMP_PATH_FILES
+}
+
+
+cleanup() {
+	msg "Cleaning up temporary files.."
+
+	if [ "$PREFIX" != "/usr" ] && [ "$PREFIX" != "/opt" ]; then
+		 msg2 "Skipping removal of $PREFIX, it contains important files"
+	 else
+		 if [ -d "$PREFIX" ]; then
+			 msg2 "Removing temporary prefix directory: $PREFIX"
+			 rm -rf "$PREFIX" && msg "Removed temporary prefix directory"
+		 fi
+	fi
+
+	if [ -n "$TMP_PATH_FILES" ]; then
+		rm -f "$TMP_PATH_FILES" && msg2 "Removed temporary file $TMP_PATH_FILES"
+	fi
+
+	if [ -d "$MANAGER_ARCHIVES/$PKG_NAME" ]; then
+		rm -rf "$MANAGER_ARCHIVES/$PKG_NAME" && msg2 "Removed package archive directory: $MANAGER_ARCHIVES/$PKG_NAME"
+	fi
+
+	msg "Cleanup completed."
 }

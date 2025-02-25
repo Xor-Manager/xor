@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
-source ./config.sh
-source ./messages.sh
+source ../core/config.sh
+source ../core/messages.sh
 
-source ./repositories
+source ../database/repositories
 
 
 list_repository() {

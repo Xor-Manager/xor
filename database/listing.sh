@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-source ./config.sh
-source ./messages.sh
+source ../core/config.sh
+source ../core/messages.sh
 
 list_installed_packages() {
     msg3 "Installed packages with versions:"

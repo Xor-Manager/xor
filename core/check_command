@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+
+#INFO: Check for progress bar
+check_pv() {
+	if [ command -v pv > /dev/null 2>&1 ]; then
+		return 0
+	else
+		return 1
+	fi
+}
