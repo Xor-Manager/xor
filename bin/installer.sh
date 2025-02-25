@@ -2,11 +2,11 @@
 set -e
 # set -x
 
-source ../core/config.sh
-source ../core/messages.sh
+source $(dirname "$0")/../core/config.sh
+source $(dirname "$0")/../core/messages.sh
 
-source ../database/repositories
-source ../core/check_command
+source $(dirname "$0")/../database/repositories
+source $(dirname "$0")/../core/check_command
 
 PKG_NAME=$1
 PKG_VER=$2

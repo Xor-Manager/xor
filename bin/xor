@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-source ../core/config.sh
-source ../core/messages.sh
-source ./installer.sh
-source ./remover.sh
-source ../database/listing.sh
-source ../core/commands.sh
+source $(dirname "$0")/../core/config.sh
+source $(dirname "$0")/../core/messages.sh
+
+source $(dirname "$0")/installer.sh
+source $(dirname "$0")/remover.sh
+source $(dirname "$0")/../database/listing.sh
+source $(dirname "$0")/../core/commands.sh
 
 INTERACTIVE_MODE=false
 VERBOSE_MODE=false
@@ -14,19 +15,20 @@ DEBUG_MODE=false
 
 
 show_help() {
-    echo "Uso: $0 <comando> [opções] <pacote>"
+    echo "Usage: $0 <command> [options] <package>"
     echo ""
-    echo "Comandos disponíveis:"
-    echo "  install         Instalar um pacote"
-    echo "  remove          Remover um pacote"
-    echo "  list            Listar pacotes instalados"
-    echo "  list-repository Listar pacotes disponíveis no repositório"
-    echo "  depends	    Listar dependencias de pacotes"
-    echo ""
-    echo "Opções:"
-    echo "  -i, --interactive   Perguntar para cada dependência antes de instalar"
-    echo "  -v, --verbose       Mostrar mais detalhes durante a execução"
-    echo "  -h, --help          Mostrar esta ajuda"
+    echo "Avaible commands:"
+    echo "  install         Install package"
+    echo "  remove          Remove package"
+    echo "  reinstall       Remove and install package"
+    echo "  list            List installed packages"
+    echo "  list-repository List avaible packages to install"
+    echo "  depends	  List package dependecies"
+    # echo ""
+    # echo "Options:"
+    # echo "  -i, --interactive   Perguntar para cada dependência antes de instalar"
+    # echo "  -v, --verbose       Mostrar mais detalhes durante a execução"
+    # echo "  -h, --help          Mostrar esta ajuda"
     exit 0
 }
 
@@ -35,6 +37,11 @@ ensure_package_specified() {
 	msgerr "Error: No package specified."
 	exit 1
     fi
+}
+
+reinstall_package() {
+    remove_package "$1" &&
+    check_already_installed "$1"
 }
 
 COMMAND=""
@@ -54,7 +61,7 @@ need_root() {
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-	install|remove|depends|list|list-repository)
+	install|remove|reinstall|depends|list|list-repository)
 	    COMMAND="$1"
 	    shift
 	    if [[ $# -gt 0 ]]; then
@@ -91,6 +98,11 @@ case "$COMMAND" in
         ensure_package_specified
         remove_package "$PKG_NAME"
         ;;
+    reinstall)
+	need_root
+	ensure_package_specified
+	reinstall_package "$PKG_NAME"
+	;;
     list)
         list_installed_packages "$PKG_NAME"
         ;;

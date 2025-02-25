@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-source ../core/config.sh
-source ../core/messages.sh
+source $(dirname "$0")/../core/config.sh
+source $(dirname "$0")/../core/messages.sh
 
 PKG_NAME=$1
 

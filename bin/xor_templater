@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-source ../core/config.sh
-source ../core/messages.sh
+source $(dirname "$0")/../core/config.sh
+source $(dirname "$0")/../core/messages.sh
 
 PACKAGE_NAME=$(echo "$1" | tr '[:upper:]' '[:lower:]')
 msg3 "Package name: $PACKAGE_NAME"
@@ -41,7 +41,7 @@ tee "$PACKAGE_DIRECTORY/XORBUILD" > /dev/null << EOF
 #!/usr/bin/env bash
 set -e
 
-source ./config.sh
+source $(dirname "$0")/../core/config.sh
 
 PKG_NAME=$PACKAGE_NAME
 PKG_VER=$pkg_ver
