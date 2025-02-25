@@ -19,8 +19,35 @@ check_already_installed() {
 		msg "Package $PKG_NAME is already installed."
 		interrupt
 	fi
+
+	#INFO: Check if lib is installed without the xor package manager
+
+	if ldconfig -p | grep -q "$PKG_NAME"; then
+		msg "Lib $PKG_NAME is already installed."
+		return 0
+	fi
+
+	if [[ -f "/usr/lib/$PKG_NAME" || -f "/usr/local/lib/$PKG_NAME" ]]; then
+		msg "Lib $PKG_NAME is already installed."
+		return 0
+	fi
+
+	#INFO: Check if bin is installed without the xor package manager
+	if command -v "$PKG_NAME" &>/dev/null; then
+		msg "Bin $PKG_NAME is already installed."
+		return 0
+	fi
+
+	#INFO: Check if header is installed without the xor package manager
+	if [[ -f "/usr/include/$PKG_NAME" || -f "/usr/local/include/$PKG_NAME" ]]; then
+		msg "Header $PKG_NAME is already installed."
+		return 0
+	fi
+
+
 	check_repositories
 }
+
 
 check_repositories() {
 	result=$(search_repositories "$PKG_NAME" | head -n 1)
@@ -46,7 +73,7 @@ ask_to_install_dependency() {
 
 	if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
 		msg "Installing dependency: $dep"
-		bash ./xor install "$dep" || { msgerr "Failed to install dependency $dep"; return 1; }
+		bash $(dirname "$0")../bin/xor install "$dep" || { msgerr "Failed to install dependency $dep"; return 1; }
 	else
 		msgerr "Dependency $dep not installed. The package can not work correctly."
 		return 1
@@ -114,8 +141,7 @@ check_dependencies() {
 			fi
 
 			for dep in "${missing_deps[@]}"; do
-				# bash "$0" "$dep"
-				bash ./xor install "$dep"
+				bash $(dirname "$0")/../bin/xor install "$dep"
 			done
 		fi
 	fi
