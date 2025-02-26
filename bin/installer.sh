@@ -234,8 +234,6 @@ install_and_log() {
 	local dest_dir="$2"
 	local package_name="$3"
 
-	TMP_PATH_FILES=$(mktemp)
-
 	if [ ! -d "$src_dir" ]; then
 		msgerr "Source directory $src_dir does not exist!"
 		return 1
@@ -259,6 +257,8 @@ install_and_log() {
 }
 
 installing() {
+	TMP_PATH_FILES=$(mktemp)
+
 	if [ -d "$PREFIX/bin" ]; then
 		install_and_log "$PREFIX/bin" "/usr/bin" "$PKG_NAME"
 	fi
