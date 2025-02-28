@@ -7,7 +7,7 @@ export MANAGER_INSTALLED=$MANAGER_DB/installed
 
 export MANAGER_PREFIX=/var/$MANAGER_NAME/prefixes
 
-export MANAGER_REPOSITORY=/var/$MANAGER_NAME/repository
+export MANAGER_REPOSITORY=/var/$MANAGER_NAME/repositories
 
 export MANAGER_ARCHIVES=/var/$MANAGER_NAME/archives
 
