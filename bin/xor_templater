@@ -43,15 +43,13 @@ set -e
 
 source \$(dirname "\$0")/../core/config.sh
 
-PKG_NAME=$PACKAGE_NAME
-PKG_VER=$pkg_ver
-PKG_DEPENDENCIES=\$(cat <<- EOF
-	EOF
-)
+name=$PACKAGE_NAME
+ver=$pkg_ver
+dependencies=()
 
-PKG_MAKE_DEPENDENCIES=""
-PKG_URL=$pkg_url
-PREFIX=\$MANAGER_PREFIX/\$PKG_NAME
+make_dependencies=""
+url=$pkg_url
+prefix=\$MANAGER_PREFIX/\$name
 
 configure() {
 }
