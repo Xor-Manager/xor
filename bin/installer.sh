@@ -1,6 +1,5 @@
 #!/usr/bin/bash
 set -e
-# set -x
 
 source $(dirname "$0")/../core/config.sh
 source $(dirname "$0")/../core/messages.sh
@@ -82,9 +81,11 @@ ask_to_install_dependency() {
 
 
 check_dependencies() {
-	source "$MANAGER_REPOSITORY/$PKG_NAME/XORBUILD"
+	local repo_name="$(find_pkg_repository "$PKG_NAME")"
 
-	if [ -z "$PKG_DEPENDENCIES" ]; then
+	source "$MANAGER_REPOSITORY/$repo_name/$PKG_NAME/XORBUILD"
+
+	if [ -z "$dependencies" ]; then
 
 		msg3 "No dependencies for $PKG_NAME. Want to install ? (Y/n)"
 
@@ -100,17 +101,17 @@ check_dependencies() {
 	fi
 
 	msg2 "The package $PKG_NAME requires the following dependencies:"
-	if [ -z "$PKG_DEPENDENCIES" ]; then
+	if [ -z "$dependencies" ]; then
 		msg "No dependencies required for $PKG_NAME."
 	else
-		echo "$PKG_DEPENDENCIES" | tr ' ' '\n' | sed '/^$/d' | sed 's/^/   - /' | column -c 80
+		echo "$dependencies" | tr ' ' '\n' | sed '/^$/d' | sed 's/^/   - /' | column -c 80
 	fi
 	echo ""
 
 
 	if [ "$INTERACTIVE_MODE" == "true" ]; then
 
-		for dep in $PKG_DEPENDENCIES; do
+		for dep in ${dependencies[@]}; do
 			if [ ! -d "$MANAGER_INSTALLED/$dep" ]; then
 				ask_to_install_dependency "$dep"
 			else
@@ -119,7 +120,7 @@ check_dependencies() {
 		done
 	else
 		missing_deps=()
-		for dep in $PKG_DEPENDENCIES; do
+		for dep in ${dependencies[@]}; do
 			if [ ! -d "$MANAGER_INSTALLED/$dep" ]; then
 				missing_deps+=("$dep")
 			fi
@@ -157,8 +158,8 @@ download() {
 	fi
 
 
-	FILE_EXT=$(basename "$PKG_URL" | sed 's/.*\(\.tar\..*\)/\1/')
-	FILE_NAME="$PKG_NAME-$PKG_VER"
+	FILE_EXT=$(basename "$url" | sed 's/.*\(\.tar\..*\)/\1/')
+	FILE_NAME="$PKG_NAME-$ver"
 
 	if [ ! -f "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" ]; then
 		msg2 "Downloading $FILE_NAME"
@@ -166,12 +167,12 @@ download() {
 
 		#INFO: Progress bar for wget if the system has the pv command
 		if check_pv; then
-			if ! wget --waitretry=3 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$PKG_URL" | pv -n > /dev/null; then
+			if ! wget --waitretry=3 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$url" | pv -n > /dev/null; then
 				msgerr "Error downloading the package $PKG_NAME with pv."
 				exit 1
 			fi
 		else
-			if ! wget --waitretry=3 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$PKG_URL"; then
+			if ! wget --waitretry=3 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$url"; then
 				msgerr "Error downloading the package $PKG_NAME."
 				exit 1
 			fi
@@ -247,7 +248,7 @@ install_and_log() {
 
 			# echo "Installing $file to $dest_file"
 			install -Dm755 "$file" "$dest_file" && echo "$dest_file" | tee -a "$TMP_PATH_FILES" > /dev/null
-			msg2 "Installed: $dest_file"
+			msg2 "Installed: $file    ->   $dest_file"
 
 		elif [ -d "$file" ]; then
 			new_dest_dir="$dest_dir/$(basename "$file")"
@@ -259,24 +260,41 @@ install_and_log() {
 installing() {
 	TMP_PATH_FILES=$(mktemp)
 
-	if [ -d "$PREFIX/bin" ]; then
-		install_and_log "$PREFIX/bin" "/usr/bin" "$PKG_NAME"
+	if [ -d "$prefix/bin" ]; then
+		install_and_log "$prefix/bin" "/usr/bin" "$PKG_NAME"
 	fi
 
-	if [ -d "$PREFIX/lib" ]; then
-		install_and_log "$PREFIX/lib" "/usr/lib" "$PKG_NAME"
+	if [ -d "$prefix/lib" ]; then
+		install_and_log "$prefix/lib" "/usr/lib" "$PKG_NAME"
 	fi
 
-	if [ -d "$PREFIX/include" ]; then
-		install_and_log "$PREFIX/include" "/usr/include" "$PKG_NAME"
+	if [ -d "$prefix/include" ]; then
+		install_and_log "$prefix/include" "/usr/include" "$PKG_NAME"
 	fi
 
-	if [ -d "$PREFIX/share" ]; then
-		install_and_log "$PREFIX/share" "/usr/share" "$PKG_NAME"
+	if [ -d "$prefix/share" ]; then
+		install_and_log "$prefix/share" "/usr/share" "$PKG_NAME"
 	fi
 
-	if [ -d "$PREFIX/release" ]; then
-		install_and_log "$PREFIX/release" "/opt/niri" "$PKG_NAME"
+	if [ -d "$prefix/release" ]; then
+		install_and_log "$prefix/release" "/opt/niri" "$PKG_NAME"
+	fi
+	
+	#For /usr
+	if [ -d "$prefix/usr/bin" ]; then
+		install_and_log "$prefix/usr/bin" "/usr/bin" "$PKG_NAME"
+	fi
+
+	if [ -d "$prefix/usr/lib" ]; then
+		install_and_log "$prefix/usr/lib" "/usr/lib" "$PKG_NAME"
+	fi
+
+	if [ -d "$prefix/usr/include" ]; then
+		install_and_log "$prefix/usr/include" "/usr/include" "$PKG_NAME"
+	fi
+
+	if [ -d "$prefix/usr/share" ]; then
+		install_and_log "$prefix/usr/share" "/usr/share" "$PKG_NAME"
 	fi
 
 	# remove_archives
@@ -288,12 +306,12 @@ adding_installed_db() {
 	local folder="$MANAGER_INSTALLED/$PKG_NAME"
 	mkdir -p "$folder"
 
-	echo "$PKG_VER" > "$folder/version"
-	echo "$PKG_URL" > "$folder/url"
+	echo "$ver" > "$folder/version"
+	echo "$url" > "$folder/url"
 
-	if [ -n "$PKG_DEPENDENCIES" ]; then
+	if [ -n "$dependencies" ]; then
 		# echo "$PKG_DEPENDENCIES" | sed 's/\(.*\)/- \1/g' | tr '\n' '\n' > "$folder/dependencies"
-		echo "$PKG_DEPENDENCIES" > "$folder/dependencies"
+		echo "$dependencies" > "$folder/dependencies"
 	else
 		touch "$folder/dependencies"
 	fi
@@ -306,12 +324,12 @@ adding_installed_db() {
 cleanup() {
 	msg "Cleaning up temporary files.."
 
-	if [ "$PREFIX" != "/usr" ] && [ "$PREFIX" != "/opt" ]; then
-		 msg2 "Skipping removal of $PREFIX, it contains important files"
+	if [ "$prefix" != "/usr" ] && [ "$prefix" != "/opt" ]; then
+		 msg2 "Skipping removal of $prefix, it contains important files"
 	 else
-		 if [ -d "$PREFIX" ]; then
-			 msg2 "Removing temporary prefix directory: $PREFIX"
-			 rm -rf "$PREFIX" && msg "Removed temporary prefix directory"
+		 if [ -d "$prefix" ]; then
+			 msg2 "Removing temporary prefix directory: $prefix"
+			 rm -rf "$prefix" && msg "Removed temporary prefix directory"
 		 fi
 	fi
 
