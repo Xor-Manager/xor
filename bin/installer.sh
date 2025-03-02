@@ -7,12 +7,10 @@ source $(dirname "$0")/../core/messages.sh
 source $(dirname "$0")/../database/repositories
 source $(dirname "$0")/../core/check_command
 
-PKG_NAME=$1
-PKG_VER=$2
-
 #First (main)
 check_already_installed() {
 	PKG_NAME=$1
+	PKG_VER=""
 
 	if [ -d "$MANAGER_DB/installed/$PKG_NAME" ]; then
 		msg "Package $PKG_NAME is already installed."
@@ -23,26 +21,25 @@ check_already_installed() {
 
 	if ldconfig -p | grep -q "$PKG_NAME"; then
 		msg "Lib $PKG_NAME is already installed."
-		return 0
+		interrupt
 	fi
 
 	if [[ -f "/usr/lib/$PKG_NAME" || -f "/usr/local/lib/$PKG_NAME" ]]; then
 		msg "Lib $PKG_NAME is already installed."
-		return 0
+		interrupt
 	fi
 
 	#INFO: Check if bin is installed without the xor package manager
 	if command -v "$PKG_NAME" &>/dev/null; then
 		msg "Bin $PKG_NAME is already installed."
-		return 0
+		interrupt
 	fi
 
 	#INFO: Check if header is installed without the xor package manager
 	if [[ -f "/usr/include/$PKG_NAME" || -f "/usr/local/include/$PKG_NAME" ]]; then
 		msg "Header $PKG_NAME is already installed."
-		return 0
+		interrupt
 	fi
-
 
 	check_repositories
 }
@@ -54,13 +51,12 @@ check_repositories() {
 	if [ -n "$result" ]; then
 		echo "Package found: $result"
 		echo ""
-
 		check_dependencies
+
 	else
 		msgerr "Package not found: $PKG_NAME"
 		interrupt
 	fi
-
 }
 
 ask_to_install_dependency() {
@@ -81,7 +77,7 @@ ask_to_install_dependency() {
 
 
 check_dependencies() {
-	local repo_name="$(find_pkg_repository "$PKG_NAME")"
+	repo_name="$(find_pkg_repository "$PKG_NAME")"
 
 	source "$MANAGER_REPOSITORY/$repo_name/$PKG_NAME/XORBUILD"
 
@@ -92,7 +88,7 @@ check_dependencies() {
 		read -r answer
 		answer=${answer:-"y"}
 		if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
-			download
+			create_temp_folder
 			return 0
 		else
 			interrupt
@@ -109,73 +105,80 @@ check_dependencies() {
 	echo ""
 
 
-	if [ "$INTERACTIVE_MODE" == "true" ]; then
-
-		for dep in ${dependencies[@]}; do
-			if [ ! -d "$MANAGER_INSTALLED/$dep" ]; then
-				ask_to_install_dependency "$dep"
-			else
-				msg "Dependency $dep already installed."
-			fi
-		done
-	else
-		missing_deps=()
-		for dep in ${dependencies[@]}; do
-			if [ ! -d "$MANAGER_INSTALLED/$dep" ]; then
-				missing_deps+=("$dep")
-			fi
-		done
-
-		if [ ${#missing_deps[@]} -gt 0 ]; then
-			msg3 "The following dependencies are missing and will be installed:"
-			printf "   - %s\n" "${missing_deps[@]}" | column -c 80
-
-
-			echo ""
-			msg "Process with installation ? (Y/n)"
-
-			read -r answer
-			answer=${answer:-"y"}
-			if [[ "$answer" == "n" || "$answer" == "N" ]]; then
-				msgwarn "Dependencies were not installed. Installation aborted."
-				exit 1
-			fi
-
-			for dep in "${missing_deps[@]}"; do
-				bash $(dirname "$0")/../bin/xor install "$dep"
-			done
+	missing_deps=()
+	for dep in ${dependencies[@]}; do
+		if [ ! -d "$MANAGER_INSTALLED/$dep" ]; then
+			missing_deps+=("$dep")
 		fi
+	done
+
+	if [ ${#missing_deps[@]} -gt 0 ]; then
+		msg3 "The following dependencies are missing and will be installed:"
+		printf "   - %s\n" "${missing_deps[@]}" | column -c 80
+
+
+		echo ""
+		msg "Process with installation ? (Y/n)"
+
+		read -r answer
+		answer=${answer:-"y"}
+		if [[ "$answer" == "n" || "$answer" == "N" ]]; then
+			msgwarn "Dependencies were not installed. Installation aborted."
+			interrupt
+		fi
+
+		for dep in "${missing_deps[@]}"; do
+			bash $(dirname "$0")/../bin/xor install "$dep" || return 1
+		done
 	fi
 
+	create_temp_folder
+}
+
+create_temp_folder() {
+	trap finalize EXIT INT TERM ERR
+
+	if [ ! -d /var/tmp/$PKG_NAME ]; then
+		msg "Creating Overlay and Source folder!"
+		mkdir -p /var/tmp/$PKG_NAME/{sources,overlay/{upper,work,merged}}
+		TMP_SOURCE_FOLDER=/var/tmp/$PKG_NAME/sources
+		TMP_OVERLAY_FOLDER=/var/tmp/$PKG_NAME/overlay
+	fi
+
+	mount_overlay
+}
+
+mount_overlay() {
+	if mountpoint -q $TMP_OVERLAY_FOLDER/merged; then
+		msgerr "Overlay already mounted!"
+		return
+	fi
+
+	sudo mount -t overlay overlay \
+		-o lowerdir=/,upperdir=$TMP_OVERLAY_FOLDER/upper,workdir=$TMP_OVERLAY_FOLDER/work \
+		$TMP_OVERLAY_FOLDER/merged
+
+	if ! mountpoint -q $TMP_OVERLAY_FOLDER/merged; then
+		msgerr "Overlay mount failed!"
+		interrupt
+	fi
+
+	msg "Overlay mounted successfully!"
 	download
 }
 
 download() {
-	msg "Sourcing repository $PKG_NAME"
-
-	if [ ! -d "$MANAGER_ARCHIVES/$PKG_NAME" ]; then
-		mkdir -p "$MANAGER_ARCHIVES/$PKG_NAME" || { msgerr "Failed to create directory $MANAGER_ARCHIVES/$PKG_NAME"; exit 1; }
-	fi
-
+	msg "Sourcing repository $PKG_NAME at $TMP_SOURCE_FOLDER"
 
 	FILE_EXT=$(basename "$url" | sed 's/.*\(\.tar\..*\)/\1/')
 	FILE_NAME="$PKG_NAME-$ver"
 
-	if [ ! -f "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" ]; then
+	if [ ! -f "$TMP_SOURCE_FOLDER/$FILE_NAME$FILE_EXT" ]; then
 		msg2 "Downloading $FILE_NAME"
 
-
-		#INFO: Progress bar for wget if the system has the pv command
-		if check_pv; then
-			if ! wget --waitretry=3 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$url" | pv -n > /dev/null; then
-				msgerr "Error downloading the package $PKG_NAME with pv."
-				exit 1
-			fi
-		else
-			if ! wget --waitretry=3 -O "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME$FILE_EXT" "$url"; then
-				msgerr "Error downloading the package $PKG_NAME."
-				exit 1
-			fi
+		if ! wget --waitretry=3 -O "$TMP_SOURCE_FOLDER/$FILE_NAME$FILE_EXT" "$url"; then
+			msgerr "Error downloading the package $PKG_NAME from $url."
+			interrupt
 		fi
 
 	else
@@ -186,160 +189,176 @@ download() {
 }
 
 unpack() {
-	cd "$MANAGER_ARCHIVES/$PKG_NAME"
 
-	if [ ! -f "$FILE_NAME$FILE_EXT" ]; then
+	if [ ! -f "$TMP_SOURCE_FOLDER/$FILE_NAME$FILE_EXT" ]; then
 		msgerr "Package archive not found: $FILE_NAME$FILE_EXT"
-		exit 1
+		interrupt
 	fi
 
-
-
 	msg2 "Unpacking $FILE_NAME"
-	tar xf "$FILE_NAME$FILE_EXT" || { msgerr "Error unpacking $FILE_NAME"; exit 1; }
+	if ! tar -xf "$TMP_SOURCE_FOLDER/$FILE_NAME$FILE_EXT" -C "$TMP_SOURCE_FOLDER/"; then
+		msgerr "Error unpacking $FILE_NAME"
+		interrupt
+	fi
 
-	FILE_NAME=$(ls -td */ | head -n 1 | tr -d '/')
+	#FILE_NAME=$(ls $TMP_SOURCE_FOLDER -td */ | head -n 1 | tr -d '/')
+	FILE_NAME=$(find "$TMP_SOURCE_FOLDER" -mindepth 1 -maxdepth 1 -type d | head -n 1 | xargs basename)
 
-	if [ -z "$FILE_NAME" ]; then
+	if [ -z "$TMP_SOURCE_FOLDER/$FILE_NAME" ]; then
 		msgerr "Unpacking failed: No directory found"
-		exit 1
+		interrupt
 	fi
 
 	msg "Creating build folder"
-	mkdir -p "$FILE_NAME/build"
-	cd - > /dev/null
+	if [ -d "$TMP_SOURCE_FOLDER/$FILE_NAME/build" ]; then
+		mkdir -p "$TMP_SOURCE_FOLDER/$FILE_NAME/build"
+	fi
 
-	call_configure
+	full_install
 }
 
-call_configure() {
-	pushd "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME/build" > /dev/null
-		echo $(pwd)
-		configure
+
+full_install() {
+
+	pushd "$TMP_SOURCE_FOLDER/$FILE_NAME"
+		if check_function prepare; then
+			prepare
+		fi
+
+		if check_function configure; then
+			configure
+			if ! configure; then
+				msgerr "Configure step failed."
+				return 1
+			fi
+		fi
 	popd
 
-	call_build
+	#INFO: AFTER THIS WE ARE CHROOTED
 
-}
+	if mountpoint -q "$TMP_OVERLAY_FOLDER/merged"; then
 
-call_build(){
-	pushd "$MANAGER_ARCHIVES/$PKG_NAME/$FILE_NAME/build" > /dev/null
-		build
-	popd
+sudo chroot "$TMP_OVERLAY_FOLDER/merged" /bin/bash <<EOF
 
-	installing
-}
+			source /opt/xor/core/config.sh
 
-install_and_log() {
-	local src_dir="$1"
-	local dest_dir="$2"
-	local package_name="$3"
+			source "$MANAGER_REPOSITORY/$repo_name/$PKG_NAME/XORBUILD"
 
-	if [ ! -d "$src_dir" ]; then
-		msgerr "Source directory $src_dir does not exist!"
+			pushd "$TMP_SOURCE_FOLDER/$FILE_NAME"
+			pwd
+
+				# if declare -f "prepare" &>/dev/null; then
+				# 	prepare
+				# fi
+				#
+				# if declare -f "configure" &>/dev/null; then
+				# 	configure
+				# 	if ! configure; then
+				# 		msgerr "Configure step failed."
+				# 		return 1
+				# 	fi
+				# fi
+
+
+
+				if declare -f "build" &>/dev/null; then
+					build
+				fi
+
+				if declare -f "after" &>/dev/null; then
+					after
+				fi
+
+				if declare -f "test" &>/dev/null; then
+					test
+				fi
+
+			popd
+EOF
+	else
+		msgerr "No mount point for chroot"
 		return 1
 	fi
 
-	mkdir -p "$dest_dir"
+	#prepare
+	#configure
+	#install
+	#after
+	#test
 
-	for file in "$src_dir"/*; do
-		if [ -f "$file" ]; then
-			dest_file="$dest_dir/$(basename "$file")"
+	#INFO: Not chrooted anymore
+	# exit &&
 
-			# echo "Installing $file to $dest_file"
-			install -Dm755 "$file" "$dest_file" && echo "$dest_file" | tee -a "$TMP_PATH_FILES" > /dev/null
-			msg2 "Installed: $file    ->   $dest_file"
-
-		elif [ -d "$file" ]; then
-			new_dest_dir="$dest_dir/$(basename "$file")"
-			install_and_log "$file" "$new_dest_dir" "$package_name"
-		fi
-	done
+	# log_installed
+	install_log_files
 }
 
-installing() {
-	TMP_PATH_FILES=$(mktemp)
+install_log_files() {
+	msg3 "Installing and logging files"
+	local upper="$TMP_OVERLAY_FOLDER/upper"
+	local directories=("/usr" "/etc" "/opt" "/lib" "/sbin" "/var/lib")
 
-	if [ -d "$prefix/bin" ]; then
-		install_and_log "$prefix/bin" "/usr/bin" "$PKG_NAME"
-	fi
+	installed_files=""
 
-	if [ -d "$prefix/lib" ]; then
-		install_and_log "$prefix/lib" "/usr/lib" "$PKG_NAME"
-	fi
+	for dir in "${directories[@]}"; do
+		if [ -d "$upper$dir" ]; then
+			msg "Copying $dir files..."
+			sudo cp -ar "$upper$dir" / && {
+				# installed_files+=$(find "$upper$dir" | sed "s|^\./|$dir/|")$'\n'
+				installed_files+=$(find "$upper$dir" -type f | sed "s|^$upper||")$'\n'
 
-	if [ -d "$prefix/include" ]; then
-		install_and_log "$prefix/include" "/usr/include" "$PKG_NAME"
-	fi
+			} || {
+				msgerr "Failed to copy $dir files."
+				return 1
+			}
+		else
+			msgwarn "No $dir directory found in the overlay."
+		fi
+	done
 
-	if [ -d "$prefix/share" ]; then
-		install_and_log "$prefix/share" "/usr/share" "$PKG_NAME"
-	fi
-
-	if [ -d "$prefix/release" ]; then
-		install_and_log "$prefix/release" "/opt/niri" "$PKG_NAME"
-	fi
-	
-	#For /usr
-	if [ -d "$prefix/usr/bin" ]; then
-		install_and_log "$prefix/usr/bin" "/usr/bin" "$PKG_NAME"
-	fi
-
-	if [ -d "$prefix/usr/lib" ]; then
-		install_and_log "$prefix/usr/lib" "/usr/lib" "$PKG_NAME"
-	fi
-
-	if [ -d "$prefix/usr/include" ]; then
-		install_and_log "$prefix/usr/include" "/usr/include" "$PKG_NAME"
-	fi
-
-	if [ -d "$prefix/usr/share" ]; then
-		install_and_log "$prefix/usr/share" "/usr/share" "$PKG_NAME"
-	fi
-
-	# remove_archives
 	adding_installed_db
-	trap cleanup EXIT
+
 }
 
 adding_installed_db() {
 	local folder="$MANAGER_INSTALLED/$PKG_NAME"
 	mkdir -p "$folder"
-
 	echo "$ver" > "$folder/version"
 	echo "$url" > "$folder/url"
 
 	if [ -n "$dependencies" ]; then
-		# echo "$PKG_DEPENDENCIES" | sed 's/\(.*\)/- \1/g' | tr '\n' '\n' > "$folder/dependencies"
 		echo "$dependencies" > "$folder/dependencies"
 	else
 		touch "$folder/dependencies"
 	fi
 
-	echo "$(cat "$TMP_PATH_FILES")" > "$folder/paths" &&
-	rm -f $TMP_PATH_FILES
+	echo "$installed_files" > "$folder/paths"
 }
 
+finalize() {
 
-cleanup() {
-	msg "Cleaning up temporary files.."
+	msg "Checking chroot"
+	if is_chroot; then
+		exit
+	fi
+	msg "Exiting chroot"
 
-	if [ "$prefix" != "/usr" ] && [ "$prefix" != "/opt" ]; then
-		 msg2 "Skipping removal of $prefix, it contains important files"
-	 else
-		 if [ -d "$prefix" ]; then
-			 msg2 "Removing temporary prefix directory: $prefix"
-			 rm -rf "$prefix" && msg "Removed temporary prefix directory"
-		 fi
+	#TODO: Create all the messages here
+	msg "Unmounting overlay"
+	if mountpoint -q $TMP_OVERLAY_FOLDER/merged; then
+		sudo umount $TMP_OVERLAY_FOLDER/merged
+	fi
+	msg "Overlay Unmounted"
+
+	msg "Cleaning up temporary files"
+	if [ -d /var/tmp/$PKG_NAME ]; then
+		rm -rf /var/tmp/$PKG_NAME
 	fi
 
-	if [ -n "$TMP_PATH_FILES" ]; then
-		rm -f "$TMP_PATH_FILES" && msg2 "Removed temporary file $TMP_PATH_FILES"
+	if [ -d $TMP_SOURCE_FOLDER ]; then
+		rm -rf $TMP_SOURCE_FOLDER
 	fi
-
-	if [ -d "$MANAGER_ARCHIVES/$PKG_NAME" ]; then
-		rm -rf "$MANAGER_ARCHIVES/$PKG_NAME" && msg2 "Removed package archive directory: $MANAGER_ARCHIVES/$PKG_NAME"
-	fi
-
 	msg "Cleanup completed."
+
+	interrupt
 }

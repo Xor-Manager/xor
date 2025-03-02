@@ -92,6 +92,7 @@ case "$COMMAND" in
 	need_root
         ensure_package_specified
 	check_already_installed "$PKG_NAME"
+	#main_install "$PKG_NAME"
         ;;
     remove)
 	need_root
