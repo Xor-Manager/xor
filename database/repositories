@@ -5,12 +5,24 @@ source $(dirname "$0")/../core/config.sh
 source $(dirname "$0")/../core/messages.sh
 
 search_repositories() {
-	PKG=$1
+	local pkg=$1
 
-	if [ -n "$1" ]; then
-		result=$(find "$MANAGER_REPOSITORY/" -mindepth 2 -maxdepth 2 -type d -iname "$1" -exec basename {} \; | grep -v "^repository$")
+	if [ -n "$pkg" ]; then
+		result=$(find "$MANAGER_REPOSITORY/" -mindepth 2 -maxdepth 2 -type d -iname "$pkg" -exec basename {} \; | grep -v "^repository$")
 	else
 		result=$(find "$MANAGER_REPOSITORY" -mindepth 2 -maxdepth 2 -type d -exec basename {} \; | grep -v "^repository$")
 	fi
 	echo "$result"
+}
+
+find_pkg_repository() {
+	local pkg=$1
+
+	if [ ! -n "$pkg" ]; then
+		return 1
+	fi
+
+	result=$(find "$MANAGER_REPOSITORY/" -mindepth 2 -maxdepth 2 -type d -iname "$pkg" | grep -v "^repository$")
+	result="$(dirname "$result")"
+	echo "$(basename "$result")"
 }
