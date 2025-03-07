@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -e 
+
+LIBDIR="/usr/lib/xor"
+
+source "$LIBDIR/lib/config.sh"
+
+sync_ports() {
+
+if [ ! -d $MANAGER_REPOSITORY ]; then
+	sudo mkdir $MANAGER_REPOSITORY
+fi
+
+local url="$(cat $CONFIG_DIR/mirrorlist)"
+
+
+if [ -z "$(ls -A "$MANAGER_REPOSITORY")" ]; then
+	sudo git clone $url "$MANAGER_REPOSITORY/"
+else
+	cd "$MANAGER_REPOSITORY" || exit 1
+	sudo git pull
+fi
+
+}

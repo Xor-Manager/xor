@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
 set -e
 
-source $(dirname "$0")/../listing.sh
+LIBDIR="/usr/lib/xor"
 
+source "$LIBDIR/lib/config.sh"
+source "$LIBDIR/lib/messages.sh"
 
-get_dependencies() {
-	local pkg=$1
-	local dependencies=()
-	local file="$MANAGER_INSTALLED/$pkg/dependencies"
+list_installed_packages() {
+    msg3 "Installed packages with versions:"
+    for pkg in "$MANAGER_INSTALLED"/*; do
+        if [ -d "$pkg" ]; then
 
-	if [ -f "$file" ]; then
-		 
-	fi
+            pkg_name=$(basename "$pkg")
+            pkg_version="$(cat "$pkg/version")"
 
-	
+            echo -e "$pkg_name $GREEN[$pkg_version]$RESET"
+        fi
+    done
 }
 
 show_dependencies() {
@@ -56,22 +59,3 @@ show_dependencies() {
     fi
 }
 
-is_dependency_from_other() {
-	local pkg=$1
-	local dependent_packages=()
-
-	for installed_pkg in "$MANAGER_INSTALLED"/*; do
-		if [ -f "$installed_pkg/dependencies"]; then
-			if grep -q "^$pkg$" "$installed_pkg/dependencies"; then
-				dependent_packages+=("$(basename "$installed_pkg")")
-			fi
-		fi
-	done
-
-	if [ ${#dependent_packages[@]} -gt 0 ]; then 
-		echo "$dependent_packages"
-		return 0
-	fi
-
-	return 1
-}

@@ -7,8 +7,10 @@ export MANAGER_INSTALLED=$MANAGER_DB/installed
 
 export MANAGER_PREFIX=/var/$MANAGER_NAME/prefixes
 
-export MANAGER_REPOSITORY=/var/$MANAGER_NAME/repositories
+export MANAGER_REPOSITORY=/var/$MANAGER_NAME/ports
 
 export MANAGER_ARCHIVES=/var/$MANAGER_NAME/archives
 
 export MANAGER_INSTALL_PREFIX=/usr/local
+
+export CONFIG_DIR=/etc/xor

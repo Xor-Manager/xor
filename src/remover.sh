@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
-source $(dirname "$0")/../core/config.sh
-source $(dirname "$0")/../core/messages.sh
+LIBDIR="/usr/lib/xor"
+
+source "$LIBDIR/lib/config.sh"
+source "$LIBDIR/lib/messages.sh"
 
 PKG_NAME=$1
 

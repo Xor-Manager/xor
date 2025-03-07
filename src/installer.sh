@@ -1,11 +1,13 @@
 #!/usr/bin/bash
 set -e
 
-source $(dirname "$0")/../core/config.sh
-source $(dirname "$0")/../core/messages.sh
+LIBDIR="/usr/lib/xor"
 
-source $(dirname "$0")/../database/repositories
-source $(dirname "$0")/../core/check_command
+source "$LIBDIR/lib/config.sh"
+source "$LIBDIR/lib/messages.sh"
+source "$LIBDIR/lib/check_command"
+
+source "$LIBDIR/db/repositories"
 
 #First (main)
 check_already_installed() {
@@ -14,31 +16,31 @@ check_already_installed() {
 
 	if [ -d "$MANAGER_DB/installed/$PKG_NAME" ]; then
 		msg "Package $PKG_NAME is already installed."
-		interrupt
+		return 0
 	fi
 
 	#INFO: Check if lib is installed without the xor package manager
 
 	if ldconfig -p | grep -q "$PKG_NAME"; then
 		msg "Lib $PKG_NAME is already installed."
-		interrupt
+		return 0
 	fi
 
 	if [[ -f "/usr/lib/$PKG_NAME" || -f "/usr/local/lib/$PKG_NAME" ]]; then
 		msg "Lib $PKG_NAME is already installed."
-		interrupt
+		return 0
 	fi
 
 	#INFO: Check if bin is installed without the xor package manager
 	if command -v "$PKG_NAME" &>/dev/null; then
 		msg "Bin $PKG_NAME is already installed."
-		interrupt
+		return 0
 	fi
 
 	#INFO: Check if header is installed without the xor package manager
 	if [[ -f "/usr/include/$PKG_NAME" || -f "/usr/local/include/$PKG_NAME" ]]; then
 		msg "Header $PKG_NAME is already installed."
-		interrupt
+		return 0
 	fi
 
 	check_repositories

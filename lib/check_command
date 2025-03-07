@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -e
+
+#INFO: Check for progress bar
+check_pv() {
+	#command -v pv > /dev/null 2>&1
+	command -v pv &> /dev/null
+}
+
+check_function() {
+	func=$1
+
+	if type -t $func && [ "$(type -t $func)" = function ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+is_chroot() {
+	if [ "$(stat -c %i /)" -ne 2 ]; then
+		return 0
+	fi
+	return 1
+}

@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
-source $(dirname "$0")/../core/config.sh
-source $(dirname "$0")/../core/messages.sh
+LIBDIR="/usr/lib/xor"
+
+source "$LIBDIR/lib/config.sh"
+source "$LIBDIR/lib/messages.sh"
+
+create_template() {
 
 PACKAGE_NAME=$(echo "$1" | tr '[:upper:]' '[:lower:]')
 msg3 "Package name: $PACKAGE_NAME"
@@ -41,15 +45,12 @@ tee "$PACKAGE_DIRECTORY/XORBUILD" > /dev/null << EOF
 #!/usr/bin/env bash
 set -e
 
-source \$(dirname "\$0")/../core/config.sh
-
 name=$PACKAGE_NAME
 ver=$pkg_ver
 dependencies=()
 
 make_dependencies=""
 url=$pkg_url
-prefix=\$MANAGER_PREFIX/\$name
 
 configure() {
 }
@@ -62,3 +63,5 @@ EOF
 chmod +x "$PACKAGE_DIRECTORY/XORBUILD"
 
 echo "Package template for $PACKAGE_NAME was created successfully!"
+
+}

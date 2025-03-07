@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 set -e
 
-source $(dirname "$0")/../core/config.sh
-source $(dirname "$0")/../core/messages.sh
+LIBDIR="/usr/lib/xor/"
 
-source $(dirname "$0")/installer.sh
-source $(dirname "$0")/remover.sh
-source $(dirname "$0")/../database/listing.sh
-source $(dirname "$0")/../core/commands.sh
+source "$LIBDIR/lib/config.sh"
+source "$LIBDIR/lib/messages.sh"
+source "$LIBDIR/lib/commands.sh"
+
+source "$LIBDIR/src/installer.sh"
+source "$LIBDIR/src/remover.sh"
+source "$LIBDIR/src/templater"
+source "$LIBDIR/src/sync"
+
+source "$LIBDIR/db/listing.sh"
 
 INTERACTIVE_MODE=false
 VERBOSE_MODE=false
@@ -15,21 +20,26 @@ DEBUG_MODE=false
 
 
 show_help() {
-    echo "Usage: $0 <command> [options] <package>"
-    echo ""
-    echo "Avaible commands:"
-    echo "  install         Install package"
-    echo "  remove          Remove package"
-    echo "  reinstall       Remove and install package"
-    echo "  list            List installed packages"
-    echo "  list-repository List avaible packages to install"
-    echo "  depends	  List package dependecies"
-    # echo ""
-    # echo "Options:"
-    # echo "  -i, --interactive   Perguntar para cada dependência antes de instalar"
-    # echo "  -v, --verbose       Mostrar mais detalhes durante a execução"
-    # echo "  -h, --help          Mostrar esta ajuda"
+
+cat <<- EOF
+    Usage: xor <command> [options] <package>
+
+    Avaible commands:
+      install		Install package
+      remove		Remove package
+      reinstall		Remove and install package
+      sync		Sync ports
+      list		List installed packages
+      list-repository	List avaible packages to install
+      depends		List package dependecies
+      templater		Create a package template
+
+EOF
     exit 0
+ #    Options:
+	# -i, --interactive   Perguntar para cada dependência antes de instalar
+	# -v, --verbose       Mostrar mais detalhes durante a execução
+	# -h, --help          Mostrar esta ajuda
 }
 
 ensure_package_specified() {
@@ -61,7 +71,7 @@ need_root() {
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-	install|remove|reinstall|depends|list|list-repository)
+	install|remove|reinstall|depends|list|list-repository|templater|sync)
 	    COMMAND="$1"
 	    shift
 	    if [[ $# -gt 0 ]]; then
@@ -92,7 +102,6 @@ case "$COMMAND" in
 	need_root
         ensure_package_specified
 	check_already_installed "$PKG_NAME"
-	#main_install "$PKG_NAME"
         ;;
     remove)
 	need_root
@@ -104,6 +113,10 @@ case "$COMMAND" in
 	ensure_package_specified
 	reinstall_package "$PKG_NAME"
 	;;
+    sync)
+	need_root
+	sync_ports
+	;;
     list)
         list_installed_packages "$PKG_NAME"
         ;;
@@ -112,6 +125,11 @@ case "$COMMAND" in
         ;;
     depends)
 	show_dependencies "$PKG_NAME"
+	;;
+    templater)
+	need_root
+        ensure_package_specified
+	create_template "$PKG_NAME"
 	;;
     *)
         # msgerr "Erro: Nenhum comando válido foi especificado."

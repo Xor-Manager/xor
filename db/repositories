@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 set -e
 
-source $(dirname "$0")/../core/config.sh
-source $(dirname "$0")/../core/messages.sh
+LIBDIR="/usr/lib/xor"
+
+source "$LIBDIR/lib/config.sh"
+source "$LIBDIR/lib/messages.sh"
 
 search_repositories() {
 	local pkg=$1
 
 	if [ -n "$pkg" ]; then
-		result=$(find "$MANAGER_REPOSITORY/" -mindepth 2 -maxdepth 2 -type d -iname "$pkg" -exec basename {} \; | grep -v "^repository$")
+		result=$(find "$MANAGER_REPOSITORY/" -mindepth 2 -maxdepth 2 -type d -iname "$pkg" -not -path "*/.*" -exec basename {} \; | grep -v "^repository$")
 	else
-		result=$(find "$MANAGER_REPOSITORY" -mindepth 2 -maxdepth 2 -type d -exec basename {} \; | grep -v "^repository$")
+		result=$(find "$MANAGER_REPOSITORY" -mindepth 2 -maxdepth 2 -type d -not -path "*/.*" -exec basename {} \; | grep -v "^repository$")
 	fi
 	echo "$result"
 }
