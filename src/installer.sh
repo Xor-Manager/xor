@@ -11,6 +11,14 @@ source "$LIBDIR/db/repositories"
 
 #First (main)
 check_already_installed() {
+
+	if [ -f $CONFIG_DIR/xor.conf"]; then
+		. "$CONFIG_DIR/xor.conf"
+	else
+		echo "Configuration file not found: $CONFIG_DIR/xor.conf"
+		interrupt
+	fi
+
 	PKG_NAME=$1
 	PKG_VER=""
 
