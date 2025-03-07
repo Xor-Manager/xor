@@ -370,5 +370,5 @@ finalize() {
 	fi
 	msg "Cleanup completed."
 
-	interrupt
+	#interrupt
 }
