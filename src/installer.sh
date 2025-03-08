@@ -95,13 +95,20 @@ check_dependencies() {
 
 		msg3 "No dependencies for $PKG_NAME. Want to install ? (Y/n)"
 
-		read -r answer
-		answer=${answer:-"y"}
-		if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+		if [ -z "$ACCEPT" ]; then
+
+			read -r answer
+			answer=${answer:-"y"}
+			if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+				create_temp_folder
+				return 0
+			else
+				interrupt
+			fi
+
+		else
 			create_temp_folder
 			return 0
-		else
-			interrupt
 		fi
 
 	fi
@@ -128,17 +135,22 @@ check_dependencies() {
 
 
 		echo ""
-		msg "Process with installation ? (Y/n)"
 
-		read -r answer
-		answer=${answer:-"y"}
-		if [[ "$answer" == "n" || "$answer" == "N" ]]; then
-			msgwarn "Dependencies were not installed. Installation aborted."
-			interrupt
+		if [ -z "$ACCEPT" ]; then
+		
+			msg "Process with installation ? (Y/n)"
+
+			read -r answer
+			answer=${answer:-"y"}
+			if [[ "$answer" == "n" || "$answer" == "N" ]]; then
+				msgwarn "Dependencies were not installed. Installation aborted."
+				interrupt
+			fi
+
 		fi
 
 		for dep in "${missing_deps[@]}"; do
-			bash $(dirname "$0")/../bin/xor install "$dep" || return 1
+			bash xor install "$dep" -y || return 1
 		done
 	fi
 

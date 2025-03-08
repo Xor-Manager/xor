@@ -15,31 +15,28 @@ source "$LIBDIR/src/sync"
 source "$LIBDIR/db/listing.sh"
 
 INTERACTIVE_MODE=false
-VERBOSE_MODE=false
-DEBUG_MODE=false
-
 
 show_help() {
 
 cat <<- EOF
-    Usage: xor <command> [options] <package>
 
-    Avaible commands:
-      install		Install package
-      remove		Remove package
-      reinstall		Remove and install package
-      sync		Sync ports
-      list		List installed packages
-      list-repository	List avaible packages to install
-      depends		List package dependecies
-      templater		Create a package template
+    Usage: $(basename "$0") <command> [options] <package>
+
+    Available commands:
+        install		    Install package
+        remove		    Remove package
+        reinstall	    Remove and install package
+        sync		    Sync ports
+        list		    List installed packages
+        list-repository	    List avaible packages to install
+        depends		    List package dependencies
+        templater	    Create a package template
+
+    Options:
+        -y --yes	    Always accept the answers
 
 EOF
     exit 0
- #    Options:
-	# -i, --interactive   Perguntar para cada dependência antes de instalar
-	# -v, --verbose       Mostrar mais detalhes durante a execução
-	# -h, --help          Mostrar esta ajuda
 }
 
 ensure_package_specified() {
@@ -79,12 +76,8 @@ while [[ $# -gt 0 ]]; do
 		shift
 	    fi
 	    ;;
-	-i|--interactive)
-	    INTERACTIVE_MODE=true
-	    shift
-	    ;;
-	-v|--verbose)
-	    VERBOSE_MODE=true
+	-y|--yes)
+	    ACCEPT=true
 	    shift
 	    ;;
 	    -h|--help)
